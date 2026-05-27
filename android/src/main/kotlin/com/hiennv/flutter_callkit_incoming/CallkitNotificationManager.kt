@@ -40,7 +40,7 @@ class CallkitNotificationManager(
         const val EXTRA_TIME_START_CALL = "EXTRA_TIME_START_CALL"
 
         const val NOTIFICATION_CHANNEL_ID_INCOMING = "callkit_incoming_channel_id"
-        const val NOTIFICATION_CHANNEL_ID_ONGOING = "callkit_ongoing_channel_id"
+        const val NOTIFICATION_CHANNEL_ID_ONGOING = "callkit_ongoing_channel_id_v2"
         const val NOTIFICATION_CHANNEL_ID_MISSED = "callkit_missed_channel_id"
 
     }
@@ -613,21 +613,17 @@ class CallkitNotificationManager(
             data.getBoolean(CallkitConstants.EXTRA_CALLKIT_CALLING_SHOW, true)
         if (!isCallingNotificationShow) return null
 
-        val callingId = data.getString(
+        val onGoingNotificationId = data.getString(
             CallkitConstants.EXTRA_CALLKIT_CALLING_ID,
             data.getString(CallkitConstants.EXTRA_CALLKIT_ID, "callkit_incoming")
-        )
-
-        val onGoingNotificationId = ("ongoing_$callingId").hashCode()
+        ).hashCode()
 
         notificationOngoingBuilder = NotificationCompat.Builder(
             context, NOTIFICATION_CHANNEL_ID_ONGOING
         )
         notificationOngoingBuilder?.setChannelId(NOTIFICATION_CHANNEL_ID_ONGOING)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                notificationOngoingBuilder?.setCategory(Notification.CATEGORY_CALL)
-            }
+            notificationOngoingBuilder?.setCategory(Notification.CATEGORY_CALL)
         }
         val textCalling = data.getString(CallkitConstants.EXTRA_CALLKIT_CALLING_SUBTITLE, "")
         notificationOngoingBuilder?.setSubText(
@@ -653,7 +649,7 @@ class CallkitNotificationManager(
         val isCustomNotification =
             data.getBoolean(CallkitConstants.EXTRA_CALLKIT_IS_CUSTOM_NOTIFICATION, false)
         if (isCustomNotification) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
 
                 val caller = data.getString(CallkitConstants.EXTRA_CALLKIT_NAME_CALLER, "")
                 val person = Person.Builder().setName(caller).setImportant(
@@ -662,11 +658,16 @@ class CallkitNotificationManager(
                 val callStyle = NotificationCompat.CallStyle.forOngoingCall(
                     person, getHangupPendingIntent(onGoingNotificationId, data)
                 )
-                callStyle.setVerificationText(
-                    if (TextUtils.isEmpty(textCalling)) context.getString(
-                        R.string.text_calling
-                    ) else textCalling
-                )
+                if (isConnected != true) {
+                    // "Connecting…" text shown only during the pre-media-up phase.
+                    // Once the call is connected we drop it so the chronometer is
+                    // the only timing indicator.
+                    callStyle.setVerificationText(
+                        if (TextUtils.isEmpty(textCalling)) context.getString(
+                            R.string.text_calling
+                        ) else textCalling
+                    )
+                }
                 notificationOngoingBuilder?.setStyle(callStyle)
 
 
@@ -826,10 +827,17 @@ class CallkitNotificationManager(
             Notification.PRIORITY_HIGH
         }
         if (isConnected == true) {
+            // Media is up: show the chronometer starting from now.
             notificationOngoingBuilder?.setWhen(System.currentTimeMillis())
             notificationOngoingBuilder?.setUsesChronometer(true)
+            notificationOngoingBuilder?.setShowWhen(true)
         } else {
+            // Pre-media-up ("Connecting…" phase): hide the `when` timer entirely
+            // so CallStyle.forOngoingCall doesn't render a stopwatch that would
+            // visually compete with the verification text and then snap back to
+            // 0 once we promote the call to connected.
             notificationOngoingBuilder?.setUsesChronometer(false)
+            notificationOngoingBuilder?.setShowWhen(false)
         }
         notificationOngoingBuilder?.setSound(null)
         notificationOngoingBuilder?.setContentIntent(
@@ -952,8 +960,11 @@ class CallkitNotificationManager(
                 val channelOngoingCall = NotificationChannel(
                     NOTIFICATION_CHANNEL_ID_ONGOING,
                     ongoingCallChannelName,
-                    NotificationManager.IMPORTANCE_LOW // disables notification popup for ongoing call
-                )
+                    NotificationManager.IMPORTANCE_DEFAULT // ranked alongside system call notifications; silenced via setSound(null)
+                ).apply {
+                    setSound(null, null)
+                    enableVibration(false)
+                }
                 createNotificationChannel(channelOngoingCall)
             }
         }
