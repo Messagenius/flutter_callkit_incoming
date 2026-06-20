@@ -9,6 +9,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 
@@ -112,18 +113,55 @@ class CallkitNotificationService : Service() {
     }
 
     private fun startForeground(notificationId: Int, notification: Notification, isVideo: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            var mask =
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // 30+
-                mask = mask or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-                if (isVideo) {
-                    mask = mask or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-                }
-            }
-            startForeground(notificationId, notification, mask)
-        } else {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             startForeground(notificationId, notification)
+            return
+        }
+
+        // On Android 14+ (targetSdk 34+, hard-enforced on 15/16) the `microphone` and
+        // `camera` foreground-service types are "while-in-use" permissions: an FGS that
+        // declares them CANNOT be started while the app is in the background. The system
+        // throws SecurityException ("the app must be in the eligible state/exemptions to
+        // access the foreground only permission") and kills the process. This service is
+        // started from the background when a call is accepted from a notification / lock
+        // screen (ACTION_CALL_ACCEPT) — exactly the disallowed case.
+        //
+        // `phoneCall` is exempt from that restriction for a self-managed calling app
+        // (MANAGE_OWN_CALLS + CallkitConnectionService). So we attempt the full type set
+        // (preferable when we ARE foreground-eligible) and degrade to phoneCall-only when
+        // the OS rejects the while-in-use types. Mic/camera capture still works during the
+        // active Telecom call under the phoneCall type.
+        var mask = ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // 30+
+            mask = mask or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            if (isVideo) {
+                mask = mask or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+            }
+        }
+
+        try {
+            startForeground(notificationId, notification, mask)
+        } catch (e: Exception) {
+            // Covers SecurityException (while-in-use type not allowed from background) and
+            // ForegroundServiceStartNotAllowedException. Retry with phoneCall only — the
+            // type that is legal to start from the background for a self-managed call.
+            Log.w(
+                "CallkitNotificationService",
+                "FGS start with mic/camera type rejected, falling back to phoneCall only",
+                e
+            )
+            try {
+                startForeground(
+                    notificationId,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
+                )
+            } catch (e2: Exception) {
+                // Last resort: promote without a type so we still satisfy the
+                // startForegroundService() contract instead of crashing the process.
+                Log.w("CallkitNotificationService", "FGS start with phoneCall type also rejected", e2)
+                startForeground(notificationId, notification)
+            }
         }
     }
 
