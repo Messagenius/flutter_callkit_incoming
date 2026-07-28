@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Bundle
@@ -88,11 +89,38 @@ class CallkitNotificationService : Service() {
             getCallkitNotificationManager()?.getOnGoingCallNotification(bundle, false)
         if (callkitNotification != null) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(
-                    callkitNotification.id,
-                    callkitNotification.notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
-                )
+                // DEV-11936: a phoneCall-only FGS gets its mic/camera capture
+                // silenced by the while-in-use rules (Android 11+) as soon as
+                // the host app leaves the foreground — declare the types the
+                // granted permissions allow.
+                var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+                        PackageManager.PERMISSION_GRANTED
+                    ) {
+                        types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    }
+                    if (checkSelfPermission(android.Manifest.permission.CAMERA) ==
+                        PackageManager.PERMISSION_GRANTED
+                    ) {
+                        types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                    }
+                }
+                try {
+                    startForeground(callkitNotification.id, callkitNotification.notification, types)
+                } catch (e: Exception) {
+                    // Android 14+ forbids STARTING a mic/camera-typed FGS from
+                    // the background (e.g. accept from the lock screen). Fall
+                    // back to phoneCall-only: the ongoing notification is
+                    // re-driven when the call reaches `connected` with the app
+                    // foregrounded, and that second startForeground upgrades
+                    // the active types.
+                    startForeground(
+                        callkitNotification.id,
+                        callkitNotification.notification,
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
+                    )
+                }
             } else {
                 startForeground(callkitNotification.id, callkitNotification.notification)
             }
