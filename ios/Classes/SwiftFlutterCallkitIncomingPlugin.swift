@@ -754,6 +754,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             action.fail()
             return
         }
+        // self.configureAudioSession()
 
         // Phase 8.2 v2.1 surgery — Apple WWDC 2018 707 권장 패턴.
         //
