@@ -20,6 +20,8 @@ object CallkitConstants {
         "com.hiennv.flutter_callkit_incoming.ACTION_CALL_CALLBACK"
     const val ACTION_CALL_CUSTOM =
         "com.hiennv.flutter_callkit_incoming.ACTION_CALL_CUSTOM"
+    const val ACTION_CALL_ACCEPT_VIDEO =
+        "com.hiennv.flutter_callkit_incoming.ACTION_CALL_ACCEPT_VIDEO"
     const val ACTION_CALL_AUDIO_STATE_CHANGE =
         "com.hiennv.flutter_callkit_incoming.ACTION_CALL_AUDIO_STATE_CHANGE"
     const val ACTION_CALL_HELD = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_HELD"
@@ -38,6 +40,8 @@ object CallkitConstants {
     const val EXTRA_CALLKIT_DURATION = "EXTRA_CALLKIT_DURATION"
     const val EXTRA_CALLKIT_TEXT_ACCEPT = "EXTRA_CALLKIT_TEXT_ACCEPT"
     const val EXTRA_CALLKIT_TEXT_DECLINE = "EXTRA_CALLKIT_TEXT_DECLINE"
+    const val EXTRA_CALLKIT_ACCEPT_COLOR = "EXTRA_CALLKIT_ACCEPT_COLOR"
+    const val EXTRA_CALLKIT_DECLINE_COLOR = "EXTRA_CALLKIT_DECLINE_COLOR"
 
     const val EXTRA_CALLKIT_MISSED_CALL_ID = "EXTRA_CALLKIT_MISSED_CALL_ID"
     const val EXTRA_CALLKIT_MISSED_CALL_SHOW = "EXTRA_CALLKIT_MISSED_CALL_SHOW"

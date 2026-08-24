@@ -40,7 +40,7 @@ class CallkitNotificationManager(
         const val EXTRA_TIME_START_CALL = "EXTRA_TIME_START_CALL"
 
         const val NOTIFICATION_CHANNEL_ID_INCOMING = "callkit_incoming_channel_id"
-        const val NOTIFICATION_CHANNEL_ID_ONGOING = "callkit_ongoing_channel_id"
+        const val NOTIFICATION_CHANNEL_ID_ONGOING = "callkit_ongoing_channel_id_v2"
         const val NOTIFICATION_CHANNEL_ID_MISSED = "callkit_missed_channel_id"
 
     }
@@ -216,8 +216,11 @@ class CallkitNotificationManager(
         val isCustomSmallExNotification =
             data.getBoolean(CallkitConstants.EXTRA_CALLKIT_IS_CUSTOM_SMALL_EX_NOTIFICATION, false)
         if (isCustomNotification) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-
+            // On API 34+ with a video call: bypass CallStyle (which only supports 2 buttons) and
+            // use custom RemoteViews so the third "Accept with Video" button is visible.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && typeCall > 0) {
+                initCustomRemoteViews(notificationId, data, isCustomSmallExNotification)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 val caller = data.getString(CallkitConstants.EXTRA_CALLKIT_NAME_CALLER, "")
                 val person = Person.Builder().setName(caller).setImportant(
                     data.getBoolean(CallkitConstants.EXTRA_CALLKIT_IS_IMPORTANT, true)
@@ -227,7 +230,7 @@ class CallkitNotificationManager(
                         person,
                         getDeclinePendingIntent(notificationId, data),
                         getAcceptPendingIntent(notificationId, data),
-                    ).setIsVideo(typeCall > 0)
+                    ).setIsVideo(false)
                 )
                 val isShowCallID =
                     data.getBoolean(CallkitConstants.EXTRA_CALLKIT_IS_SHOW_CALL_ID, false)
@@ -262,28 +265,7 @@ class CallkitNotificationManager(
 
                 }
             } else {
-                notificationViews =
-                    RemoteViews(context.packageName, R.layout.layout_custom_notification)
-                initInComingNotificationViews(notificationId, notificationViews!!, data)
-
-                if ((Build.MANUFACTURER.equals(
-                        "Samsung", ignoreCase = true
-                    ) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) || isCustomSmallExNotification
-                ) {
-                    notificationSmallViews = RemoteViews(
-                        context.packageName, R.layout.layout_custom_small_ex_notification
-                    )
-                    initInComingNotificationViews(notificationId, notificationSmallViews!!, data)
-                } else {
-                    notificationSmallViews =
-                        RemoteViews(context.packageName, R.layout.layout_custom_small_notification)
-                    initInComingNotificationViews(notificationId, notificationSmallViews!!, data)
-                }
-
-                notificationBuilder?.setStyle(NotificationCompat.DecoratedCustomViewStyle())
-                notificationBuilder?.setCustomContentView(notificationSmallViews)
-                notificationBuilder?.setCustomBigContentView(notificationViews)
-                notificationBuilder?.setCustomHeadsUpContentView(notificationSmallViews)
+                initCustomRemoteViews(notificationId, data, isCustomSmallExNotification)
             }
         } else {
             notificationBuilder?.setContentText(
@@ -312,7 +294,11 @@ class CallkitNotificationManager(
                 )
             }
             val caller = data.getString(CallkitConstants.EXTRA_CALLKIT_NAME_CALLER, "")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            // On API 34+ with a video call: bypass CallStyle for 3-button layout.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && typeCall > 0) {
+                notificationBuilder?.setContentTitle(caller)
+                initCustomRemoteViews(notificationId, data, isCustomSmallExNotification)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 val person = Person.Builder().setName(caller).setImportant(
                     data.getBoolean(CallkitConstants.EXTRA_CALLKIT_IS_IMPORTANT, true)
                 ).setBot(data.getBoolean(CallkitConstants.EXTRA_CALLKIT_IS_BOT, false)).build()
@@ -321,7 +307,7 @@ class CallkitNotificationManager(
                         person,
                         getDeclinePendingIntent(notificationId, data),
                         getAcceptPendingIntent(notificationId, data),
-                    ).setIsVideo(typeCall > 0)
+                    ).setIsVideo(false)
                 )
             } else {
                 notificationBuilder?.setContentTitle(caller)
@@ -339,12 +325,42 @@ class CallkitNotificationManager(
                     getAcceptPendingIntent(notificationId, data)
                 ).build()
                 notificationBuilder?.addAction(acceptAction)
+                if (typeCall > 0) {
+                    val videoAcceptAction: NotificationCompat.Action = NotificationCompat.Action.Builder(
+                        R.drawable.ic_video,
+                        context.getString(R.string.text_accept_video),
+                        getAcceptVideoPendingIntent(notificationId, data)
+                    ).build()
+                    notificationBuilder?.addAction(videoAcceptAction)
+                }
             }
         }
         notificationBuilder?.setOngoing(true)
         val notification = notificationBuilder?.build()
 
         return notification?.let { CallkitNotification(notificationId, it) }
+    }
+
+    private fun initCustomRemoteViews(
+        notificationId: Int, data: Bundle, isCustomSmallExNotification: Boolean
+    ) {
+        notificationViews = RemoteViews(context.packageName, R.layout.layout_custom_notification)
+        initInComingNotificationViews(notificationId, notificationViews!!, data)
+
+        val useExLayout = (Build.MANUFACTURER.equals(
+            "Samsung", ignoreCase = true
+        ) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) || isCustomSmallExNotification
+        notificationSmallViews = RemoteViews(
+            context.packageName,
+            if (useExLayout) R.layout.layout_custom_small_ex_notification
+            else R.layout.layout_custom_small_notification
+        )
+        initInComingNotificationViews(notificationId, notificationSmallViews!!, data)
+
+        notificationBuilder?.setStyle(NotificationCompat.DecoratedCustomViewStyle())
+        notificationBuilder?.setCustomContentView(notificationSmallViews)
+        notificationBuilder?.setCustomBigContentView(notificationViews)
+        notificationBuilder?.setCustomHeadsUpContentView(notificationSmallViews)
     }
 
     private fun initInComingNotificationViews(
@@ -375,6 +391,15 @@ class CallkitNotificationManager(
             R.id.tvAccept,
             if (TextUtils.isEmpty(textAccept)) context.getString(R.string.text_accept) else textAccept
         )
+        val callType = data.getInt(CallkitConstants.EXTRA_CALLKIT_TYPE, 0)
+        if (callType > 0) {
+            remoteViews.setViewVisibility(R.id.llAcceptVideo, View.VISIBLE)
+            remoteViews.setViewVisibility(R.id.llVideoSpacer, View.VISIBLE)
+            remoteViews.setOnClickPendingIntent(
+                R.id.llAcceptVideo, getAcceptVideoPendingIntent(notificationId, data)
+            )
+            remoteViews.setTextViewText(R.id.tvAcceptVideo, context.getString(R.string.text_accept_video))
+        }
         var avatarUrl = data.getString(CallkitConstants.EXTRA_CALLKIT_AVATAR, "")
         if (!avatarUrl.isNullOrEmpty()) {
             if (!avatarUrl.startsWith("http://", true) && !avatarUrl.startsWith("https://", true)) {
@@ -588,21 +613,17 @@ class CallkitNotificationManager(
             data.getBoolean(CallkitConstants.EXTRA_CALLKIT_CALLING_SHOW, true)
         if (!isCallingNotificationShow) return null
 
-        val callingId = data.getString(
+        val onGoingNotificationId = data.getString(
             CallkitConstants.EXTRA_CALLKIT_CALLING_ID,
             data.getString(CallkitConstants.EXTRA_CALLKIT_ID, "callkit_incoming")
-        )
-
-        val onGoingNotificationId = ("ongoing_$callingId").hashCode()
+        ).hashCode()
 
         notificationOngoingBuilder = NotificationCompat.Builder(
             context, NOTIFICATION_CHANNEL_ID_ONGOING
         )
         notificationOngoingBuilder?.setChannelId(NOTIFICATION_CHANNEL_ID_ONGOING)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                notificationOngoingBuilder?.setCategory(Notification.CATEGORY_CALL)
-            }
+            notificationOngoingBuilder?.setCategory(Notification.CATEGORY_CALL)
         }
         val textCalling = data.getString(CallkitConstants.EXTRA_CALLKIT_CALLING_SUBTITLE, "")
         notificationOngoingBuilder?.setSubText(
@@ -628,7 +649,7 @@ class CallkitNotificationManager(
         val isCustomNotification =
             data.getBoolean(CallkitConstants.EXTRA_CALLKIT_IS_CUSTOM_NOTIFICATION, false)
         if (isCustomNotification) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
 
                 val caller = data.getString(CallkitConstants.EXTRA_CALLKIT_NAME_CALLER, "")
                 val person = Person.Builder().setName(caller).setImportant(
@@ -637,11 +658,16 @@ class CallkitNotificationManager(
                 val callStyle = NotificationCompat.CallStyle.forOngoingCall(
                     person, getHangupPendingIntent(onGoingNotificationId, data)
                 )
-                callStyle.setVerificationText(
-                    if (TextUtils.isEmpty(textCalling)) context.getString(
-                        R.string.text_calling
-                    ) else textCalling
-                )
+                if (isConnected != true) {
+                    // "Connecting…" text shown only during the pre-media-up phase.
+                    // Once the call is connected we drop it so the chronometer is
+                    // the only timing indicator.
+                    callStyle.setVerificationText(
+                        if (TextUtils.isEmpty(textCalling)) context.getString(
+                            R.string.text_calling
+                        ) else textCalling
+                    )
+                }
                 notificationOngoingBuilder?.setStyle(callStyle)
 
 
@@ -801,10 +827,17 @@ class CallkitNotificationManager(
             Notification.PRIORITY_HIGH
         }
         if (isConnected == true) {
+            // Media is up: show the chronometer starting from now.
             notificationOngoingBuilder?.setWhen(System.currentTimeMillis())
             notificationOngoingBuilder?.setUsesChronometer(true)
+            notificationOngoingBuilder?.setShowWhen(true)
         } else {
+            // Pre-media-up ("Connecting…" phase): hide the `when` timer entirely
+            // so CallStyle.forOngoingCall doesn't render a stopwatch that would
+            // visually compete with the verification text and then snap back to
+            // 0 once we promote the call to connected.
             notificationOngoingBuilder?.setUsesChronometer(false)
+            notificationOngoingBuilder?.setShowWhen(false)
         }
         notificationOngoingBuilder?.setSound(null)
         notificationOngoingBuilder?.setContentIntent(
@@ -927,8 +960,11 @@ class CallkitNotificationManager(
                 val channelOngoingCall = NotificationChannel(
                     NOTIFICATION_CHANNEL_ID_ONGOING,
                     ongoingCallChannelName,
-                    NotificationManager.IMPORTANCE_LOW // disables notification popup for ongoing call
-                )
+                    NotificationManager.IMPORTANCE_DEFAULT // ranked alongside system call notifications; silenced via setSound(null)
+                ).apply {
+                    setSound(null, null)
+                    enableVibration(false)
+                }
                 createNotificationChannel(channelOngoingCall)
             }
         }
@@ -939,6 +975,14 @@ class CallkitNotificationManager(
             context, CallkitConstants.ACTION_CALL_ACCEPT, data
         )
         return PendingIntent.getActivity(context, id, intentTransparent, getFlagPendingIntent())
+    }
+
+    private fun getAcceptVideoPendingIntent(id: Int, data: Bundle): PendingIntent {
+        val intentTransparent = TransparentActivity.getIntent(
+            context, CallkitConstants.ACTION_CALL_ACCEPT_VIDEO, data
+        )
+        // Use id + 1 offset to avoid PendingIntent collision with regular accept
+        return PendingIntent.getActivity(context, id + 1, intentTransparent, getFlagPendingIntent())
     }
 
     private fun getDeclinePendingIntent(id: Int, data: Bundle): PendingIntent {
