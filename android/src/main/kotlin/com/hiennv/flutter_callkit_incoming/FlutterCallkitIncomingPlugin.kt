@@ -156,7 +156,9 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         sharePluginWithRegister(flutterPluginBinding)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            InAppCallManager.isSelfManagedTelecomEnabled(flutterPluginBinding.applicationContext)
+        ) {
             InAppCallManager(flutterPluginBinding.applicationContext).registerPhoneAccount()
         }
     }
