@@ -115,6 +115,7 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
     @SuppressLint("MissingPermission")
     private fun registerTelecomIncomingCall(context: Context, data: Bundle) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (!InAppCallManager.isSelfManagedTelecomEnabled(context)) return
         val parsed = try { Data.fromBundle(data) } catch (e: Exception) { null } ?: return
         if (parsed.id.isEmpty()) return
         // Already registered — avoid double-entry. The OS would also reject a

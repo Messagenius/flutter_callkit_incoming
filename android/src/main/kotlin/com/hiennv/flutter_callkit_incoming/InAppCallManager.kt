@@ -2,6 +2,7 @@ package com.hiennv.flutter_callkit_incoming
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.telecom.PhoneAccount
 import android.telecom.PhoneAccountHandle
@@ -15,6 +16,19 @@ class InAppCallManager(private val context: Context) {
     companion object {
         private const val ACCOUNT_ID = "flutter_callkit_incoming_in_app_call_account"
         private const val TAG = "InAppCallManager"
+
+        const val META_SELF_MANAGED = "com.hiennv.flutter_callkit_incoming.SELF_MANAGED_TELECOM"
+
+        /** True when the host app sets [META_SELF_MANAGED] to true in its manifest. */
+        fun isSelfManagedTelecomEnabled(context: Context): Boolean = try {
+            context.packageManager
+                .getApplicationInfo(context.packageName, PackageManager.GET_META_DATA)
+                .metaData
+                ?.getBoolean(META_SELF_MANAGED, false) ?: false
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not read $META_SELF_MANAGED meta-data: ${e.message}")
+            false
+        }
     }
 
     fun registerPhoneAccount() {
