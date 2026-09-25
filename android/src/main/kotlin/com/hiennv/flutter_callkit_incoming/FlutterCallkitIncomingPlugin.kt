@@ -329,6 +329,21 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
                     result.success(true)
                 }
 
+                "endCallSilently" -> {
+                    val calls = getDataActiveCalls(context)
+                    val data = Data(call.arguments() ?: HashMap())
+                    val currentCall = calls.firstOrNull { it.id == data.id }
+                    if (currentCall != null && context != null) {
+                        context?.sendBroadcast(
+                            CallkitIncomingBroadcastReceiver.getIntentDismiss(
+                                requireNotNull(context),
+                                currentCall.toBundle()
+                            )
+                        )
+                    }
+                    result.success(true)
+                }
+
                 "callConnected" -> {
                     val calls = getDataActiveCalls(context)
                     val data = Data(call.arguments() ?: HashMap())
