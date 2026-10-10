@@ -427,14 +427,25 @@ class CallkitIncomingActivity : Activity() {
 
     // Start Signify modification
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+        // Messagenius fork: either volume key silences the ring, like the system dialer.
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
             val soundPlayerManager = FlutterCallkitIncomingPlugin.getInstance()?.getCallkitSoundPlayerManager()
             if (soundPlayerManager?.isPlaying == true) {
-                soundPlayerManager.stop()
-                return true 
+                soundPlayerManager.fadeOutAndStop()
+                return true
             }
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    // Messagenius fork: touching the call screen anywhere silences the ring;
+    // the Accept/Decline buttons still work.
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        val soundPlayerManager = FlutterCallkitIncomingPlugin.getInstance()?.getCallkitSoundPlayerManager()
+        if (soundPlayerManager?.isPlaying == true) {
+            soundPlayerManager.fadeOutAndStop()
+        }
     }
     // End Signify modification
 
