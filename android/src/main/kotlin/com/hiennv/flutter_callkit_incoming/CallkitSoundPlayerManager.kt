@@ -18,6 +18,8 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -68,6 +70,33 @@ class CallkitSoundPlayerManager(private val context: Context) {
 
         val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
         context.registerReceiver(screenOffCallkitIncomingBroadcastReceiver, filter)
+    }
+
+    /**
+     * Messagenius fork: silences the ring without ending the call, fading the
+     * ringtone out over [durationMs] (API 28+, where Ringtone has a volume).
+     * The incoming notification and the call stay as they are.
+     */
+    fun fadeOutAndStop(durationMs: Long = 400L) {
+        if (!isPlaying) return
+        vibrator?.cancel()
+        val fading = ringtone
+        if (fading == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.P || !fading.isPlaying) {
+            stop()
+            return
+        }
+        val steps = 8
+        val handler = Handler(Looper.getMainLooper())
+        for (step in 1..steps) {
+            handler.postDelayed({
+                if (ringtone !== fading) return@postDelayed
+                if (step == steps) {
+                    stop()
+                } else {
+                    fading.volume = 1f - step.toFloat() / steps
+                }
+            }, durationMs * step / steps)
+        }
     }
 
     fun stop() {

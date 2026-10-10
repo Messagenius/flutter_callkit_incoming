@@ -439,6 +439,12 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
                     reply.success(true)
                 }
 
+                // Messagenius fork: stop the ring (fading it out), keep the call ringing silently.
+                "silenceRinging" -> {
+                    callkitSoundPlayerManager?.fadeOutAndStop()
+                    reply.success(true)
+                }
+
                 "endNativeSubsystemOnly" -> {
                     reply.success(true)
                 }

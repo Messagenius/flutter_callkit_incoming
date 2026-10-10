@@ -229,6 +229,10 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         case "hideCallkitIncoming":
             result(true)
             break
+        case "silenceRinging":
+            // CallKit owns the ring on iOS; the side and volume buttons silence it.
+            result(true)
+            break
         case "endNativeSubsystemOnly":
             result(true)
             break

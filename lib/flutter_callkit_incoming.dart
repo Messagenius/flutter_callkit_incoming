@@ -134,6 +134,12 @@ class FlutterCallkitIncoming {
     await _channel.invokeMethod("hideCallkitIncoming", params.toJson());
   }
 
+  /// Messagenius fork: silence the incoming ring (Android fades it out) while
+  /// the call keeps ringing silently. No-op on iOS, where CallKit owns the ring.
+  static Future<void> silenceRinging() async {
+    await _channel.invokeMethod("silenceRinging");
+  }
+
   /// Start an Outgoing call.
   /// On iOS, using Callkit(create a history into the Phone app).
   /// On Android, Nothing(only callback event listener).
