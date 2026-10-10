@@ -190,7 +190,12 @@ class CallkitNotificationManager(
 
         notificationBuilder = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID_INCOMING)
         notificationBuilder?.setChannelId(NOTIFICATION_CHANNEL_ID_INCOMING)
-        notificationBuilder?.setDefaults(NotificationCompat.DEFAULT_VIBRATE)
+        if (data.getString(CallkitConstants.EXTRA_CALLKIT_RINGTONE_PATH, "") == CallkitSoundPlayerManager.SILENT_RINGTONE) {
+            // Messagenius fork: the incoming channel vibrates; a silent call must not.
+            notificationBuilder?.setSilent(true)
+        } else {
+            notificationBuilder?.setDefaults(NotificationCompat.DEFAULT_VIBRATE)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             notificationBuilder?.setCategory(NotificationCompat.CATEGORY_CALL)
             notificationBuilder?.priority = NotificationCompat.PRIORITY_MAX
