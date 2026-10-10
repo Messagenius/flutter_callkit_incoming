@@ -48,6 +48,11 @@ class CallkitSoundPlayerManager(private val context: Context) {
 
     inner class ScreenOffCallkitIncomingBroadcastReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
+            // Messagenius fork: unlocking the phone silences the ring too.
+            if (intent.action == Intent.ACTION_USER_PRESENT) {
+                if (isPlaying) fadeOutAndStop()
+                return
+            }
             if (isPlaying && !keepRingingForFullScreenIntent) {
                 stop()
             }
@@ -77,7 +82,7 @@ class CallkitSoundPlayerManager(private val context: Context) {
             this.playVibrator()
         }
 
-        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
+        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF).apply { addAction(Intent.ACTION_USER_PRESENT) }
         context.registerReceiver(screenOffCallkitIncomingBroadcastReceiver, filter)
     }
 
