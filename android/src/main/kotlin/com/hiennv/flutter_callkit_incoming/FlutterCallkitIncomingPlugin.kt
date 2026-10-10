@@ -364,6 +364,10 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
                     val data = Data(call.arguments() ?: HashMap())
                     val currentCall = calls.firstOrNull { it.id == data.id }
                     if (currentCall != null && context != null) {
+                        // Messagenius fork: a call answered in the app (not from the
+                        // notification) was never marked accepted, so endCall() later sent
+                        // DECLINE, which leaves the ongoing-call service and notification up.
+                        addCall(context, currentCall, true)
                         context?.sendBroadcast(
                             CallkitIncomingBroadcastReceiver.getIntentConnected(
                                 requireNotNull(context),
