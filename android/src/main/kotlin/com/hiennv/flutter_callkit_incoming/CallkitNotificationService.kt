@@ -52,6 +52,7 @@ class CallkitNotificationService : Service() {
         /** Messagenius fork: internal actions for the ringing foreground service. */
         private const val ACTION_RINGING_START = "com.hiennv.flutter_callkit_incoming.ACTION_RINGING_FOREGROUND_START"
         private const val ACTION_RINGING_STOP = "com.hiennv.flutter_callkit_incoming.ACTION_RINGING_FOREGROUND_STOP"
+        private const val RING_GUARD_INTERVAL_MS = 2000L
 
         /**
          * Messagenius fork: keeps the process in the foreground while an incoming call rings,
@@ -115,6 +116,22 @@ class CallkitNotificationService : Service() {
      * the incoming notification used to trigger is fired from here instead.
      */
     private val ringingTimeoutHandler = Handler(Looper.getMainLooper())
+
+    /**
+     * Messagenius fork: ring guard. Every 2 s while ringing, the ring stops if the user has no way
+     * to see and answer the call any more (notifications or the incoming channel turned off).
+     */
+    private val ringingGuard = object : Runnable {
+        override fun run() {
+            val manager = getCallkitNotificationManager()
+            val player = FlutterCallkitIncomingPlugin.getInstance()?.getCallkitSoundPlayerManager()
+            if (player?.isPlaying == true && manager?.incomingChannelEnabled() == false) {
+                Log.w(TAG, "Ring guard: no visible incoming-call notification, silencing")
+                player.stop()
+            }
+            ringingTimeoutHandler.postDelayed(this, RING_GUARD_INTERVAL_MS)
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val bundle = intent?.getBundleExtra(CallkitConstants.EXTRA_CALLKIT_INCOMING_DATA)
@@ -230,6 +247,7 @@ class CallkitNotificationService : Service() {
             }
             val duration = bundle.getLong(CallkitConstants.EXTRA_CALLKIT_DURATION, 0L)
             ringingTimeoutHandler.removeCallbacksAndMessages(null)
+            ringingTimeoutHandler.postDelayed(ringingGuard, RING_GUARD_INTERVAL_MS)
             if (duration > 0) {
                 ringingTimeoutHandler.postDelayed({
                     sendBroadcast(CallkitIncomingBroadcastReceiver.getIntentTimeout(this, bundle))

@@ -924,7 +924,8 @@ class CallkitNotificationManager(
         }
     }
 
-    private fun incomingChannelEnabled(): Boolean = getNotificationManager().run {
+    /** Whether the incoming-call notification can be shown (app notifications and its channel on). */
+    fun incomingChannelEnabled(): Boolean = getNotificationManager().run {
         val channel = getNotificationChannel(NOTIFICATION_CHANNEL_ID_INCOMING)
 
         return areNotificationsEnabled() &&
