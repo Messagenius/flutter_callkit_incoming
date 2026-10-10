@@ -191,7 +191,8 @@ class CallkitNotificationManager(
         notificationBuilder = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID_INCOMING)
         notificationBuilder?.setChannelId(NOTIFICATION_CHANNEL_ID_INCOMING)
         if (data.getString(CallkitConstants.EXTRA_CALLKIT_RINGTONE_PATH, "") == CallkitSoundPlayerManager.SILENT_RINGTONE) {
-            // Messagenius fork: the incoming channel vibrates; a silent call must not.
+            // Messagenius fork: a silent call vibrates through the sound player (when the
+            // ringer mode allows it), not through the channel's own 3 s vibration.
             notificationBuilder?.setSilent(true)
         } else {
             notificationBuilder?.setDefaults(NotificationCompat.DEFAULT_VIBRATE)

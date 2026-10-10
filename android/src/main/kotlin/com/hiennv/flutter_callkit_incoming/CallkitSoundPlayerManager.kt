@@ -30,7 +30,7 @@ import java.util.TimerTask
 class CallkitSoundPlayerManager(private val context: Context) {
 
     companion object {
-        /** ringtonePath value that shows the incoming call without sound or vibration. */
+        /** ringtonePath value that shows the incoming call without a ringtone (vibration follows the ringer mode). */
         const val SILENT_RINGTONE = "silent"
     }
 
@@ -62,19 +62,16 @@ class CallkitSoundPlayerManager(private val context: Context) {
         this.isPlaying = true
         this.prepare()
 
-        // Messagenius fork: ringtonePath "silent" shows the call without sound or
-        // vibration (the app's own Do Not Disturb).
-        if (data.getString(CallkitConstants.EXTRA_CALLKIT_RINGTONE_PATH, "") == SILENT_RINGTONE) {
-            this.isPlaying = false
-            return
-        }
+        // Messagenius fork: ringtonePath "silent" (the app's own Do Not Disturb) skips the
+        // ringtone; the phone still vibrates if its ringer mode vibrates for calls.
+        val silent = data.getString(CallkitConstants.EXTRA_CALLKIT_RINGTONE_PATH, "") == SILENT_RINGTONE
 
         // Honour the ringer mode before making any sound: SILENT is fully quiet and
         // VIBRATE vibrates without a ringtone. The check used to live inside
         // playVibrator(), which left the ringtone audible in silent mode.
         val ringerMode = (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode
         if (ringerMode != AudioManager.RINGER_MODE_SILENT) {
-            if (ringerMode != AudioManager.RINGER_MODE_VIBRATE) {
+            if (ringerMode != AudioManager.RINGER_MODE_VIBRATE && !silent) {
                 this.playSound(data)
             }
             this.playVibrator()
