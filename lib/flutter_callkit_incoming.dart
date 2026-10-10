@@ -232,6 +232,14 @@ class FlutterCallkitIncoming {
   }
 
   static CallEvent? _receiveCallEvent(dynamic data) {
+    final event = _parseCallEvent(data);
+    if (event != null && data is Map && data['body'] != null) {
+      _rawBodies[event] = data['body'] as Object;
+    }
+    return event;
+  }
+
+  static CallEvent? _parseCallEvent(dynamic data) {
     if (data is! Map) {
       return null;
     }
@@ -394,4 +402,15 @@ class FlutterCallkitIncoming {
         return null;
     }
   }
+}
+
+/// Messagenius fork: the native event body exactly as the platform sent it
+/// (`id`, `nameCaller`, `extra`, `isActivate`, `deviceTokenVoIP`, ...).
+/// The typed [CallEvent] subclasses keep only part of it — a timeout, for
+/// instance, only its id — while callers still need fields such as `extra`.
+final Expando<Object> _rawBodies = Expando<Object>('callkitRawBody');
+
+extension CallEventRawBody on CallEvent {
+  /// The untyped body this event was parsed from, or null when there was none.
+  dynamic get rawBody => _rawBodies[this];
 }
