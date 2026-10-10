@@ -881,6 +881,7 @@ class CallkitNotificationManager(
         // End Signify modification
 
         callkitSoundPlayerManager?.stop()
+        CallkitNotificationService.stopRinging(context, data)
 
         context.sendBroadcast(CallkitIncomingActivity.getIntentEnded(context, isAccepted))
         val notificationId =
@@ -1094,6 +1095,7 @@ class CallkitNotificationManager(
             getNotificationManager().notify(
                 it.id, callkitNotification.notification
             )
+            CallkitNotificationService.startRinging(context, data)
         }
     }
 

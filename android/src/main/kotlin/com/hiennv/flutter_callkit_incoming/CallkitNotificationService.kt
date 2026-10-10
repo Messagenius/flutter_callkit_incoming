@@ -12,7 +12,9 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 
@@ -47,6 +49,47 @@ class CallkitNotificationService : Service() {
             }
         }
 
+        /** Messagenius fork: internal actions for the ringing foreground service. */
+        private const val ACTION_RINGING_START = "com.hiennv.flutter_callkit_incoming.ACTION_RINGING_FOREGROUND_START"
+        private const val ACTION_RINGING_STOP = "com.hiennv.flutter_callkit_incoming.ACTION_RINGING_FOREGROUND_STOP"
+
+        /**
+         * Messagenius fork: keeps the process in the foreground while an incoming call rings,
+         * when self-managed Telecom is off. Started from the FCM handler, the process is
+         * otherwise "cached" on Android 14+, and broadcasts to its receivers (volume keys,
+         * screen off) are deferred by about two minutes, so they could not silence the ring.
+         * With Telecom on, the bound ConnectionService does this job.
+         */
+        fun startRinging(context: Context, data: Bundle) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+            if (InAppCallManager.isSelfManagedTelecomEnabled(context)) return
+            val intent = Intent(context, CallkitNotificationService::class.java).apply {
+                action = ACTION_RINGING_START
+                putExtra(CallkitConstants.EXTRA_CALLKIT_INCOMING_DATA, data)
+            }
+            try {
+                ContextCompat.startForegroundService(context, intent)
+            } catch (e: Exception) {
+                // Not allowed from the background right now: ring without it, as before.
+                Log.w(TAG, "Could not start the ringing foreground service", e)
+            }
+        }
+
+        /** Messagenius fork: the incoming call stopped ringing (answered, declined, ended). */
+        fun stopRinging(context: Context, data: Bundle) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+            if (InAppCallManager.isSelfManagedTelecomEnabled(context)) return
+            val intent = Intent(context, CallkitNotificationService::class.java).apply {
+                action = ACTION_RINGING_STOP
+                putExtra(CallkitConstants.EXTRA_CALLKIT_INCOMING_DATA, data)
+            }
+            try {
+                context.startService(intent)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not stop the ringing foreground service", e)
+            }
+        }
+
         fun stopService(context: Context) {
             val intent = Intent(context, CallkitNotificationService::class.java)
             context.stopService(intent)
@@ -64,8 +107,27 @@ class CallkitNotificationService : Service() {
         super.onCreate()
     }
 
+    /** Messagenius fork: true once this service shows the ongoing-call notification. */
+    private var hasOngoingNotification = false
+
+    /**
+     * A foreground notification ignores its own setTimeoutAfter(), so the missed-call timeout
+     * the incoming notification used to trigger is fired from here instead.
+     */
+    private val ringingTimeoutHandler = Handler(Looper.getMainLooper())
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val bundle = intent?.getBundleExtra(CallkitConstants.EXTRA_CALLKIT_INCOMING_DATA)
+        when (intent?.action) {
+            ACTION_RINGING_START -> {
+                startRingingForeground(bundle)
+                return START_NOT_STICKY
+            }
+            ACTION_RINGING_STOP -> {
+                stopRingingForeground(bundle)
+                return START_NOT_STICKY
+            }
+        }
         val isForegroundAction = intent?.action in ActionForeground
         val needsPlaceholder = isForegroundAction &&
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
@@ -153,8 +215,50 @@ class CallkitNotificationService : Service() {
         return START_NOT_STICKY
     }
 
+    /** Uses the incoming-call notification itself as the foreground notification. */
+    private fun startRingingForeground(bundle: Bundle?) {
+        val notification = bundle?.let { getCallkitNotificationManager()?.getIncomingNotification(it) }
+        if (notification == null) {
+            if (!hasOngoingNotification) stopSelf()
+            return
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(notification.id, notification.notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL)
+            } else {
+                startForeground(notification.id, notification.notification)
+            }
+            val duration = bundle.getLong(CallkitConstants.EXTRA_CALLKIT_DURATION, 0L)
+            ringingTimeoutHandler.removeCallbacksAndMessages(null)
+            if (duration > 0) {
+                ringingTimeoutHandler.postDelayed({
+                    sendBroadcast(CallkitIncomingBroadcastReceiver.getIntentTimeout(this, bundle))
+                }, duration)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Ringing foreground service rejected", e)
+            if (!hasOngoingNotification) stopSelf()
+        }
+    }
+
+    private fun stopRingingForeground(bundle: Bundle?) {
+        ringingTimeoutHandler.removeCallbacksAndMessages(null)
+        if (hasOngoingNotification) {
+            // The ongoing notification took over the foreground; the incoming one is now a
+            // plain notification, so it can be cancelled.
+            bundle?.let {
+                val incomingId = it.getString(CallkitConstants.EXTRA_CALLKIT_ID, "callkit_incoming").hashCode()
+                getSystemService(NotificationManager::class.java)?.cancel(incomingId)
+            }
+            return
+        }
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
     @SuppressLint("MissingPermission")
     private fun showOngoingCallNotification(bundle: Bundle, isConnected: Boolean = false) {
+        hasOngoingNotification = true
 
         val callkitNotification =
             getCallkitNotificationManager()?.getOnGoingCallNotification(bundle, isConnected)
@@ -286,6 +390,7 @@ class CallkitNotificationService : Service() {
 
 
     override fun onDestroy() {
+        ringingTimeoutHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
         // Don't destroy the notification manager here as it's shared across the app
         // The plugin will handle cleanup when all engines are detached
