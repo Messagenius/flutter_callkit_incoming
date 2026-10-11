@@ -53,6 +53,7 @@ class CallkitNotificationService : Service() {
         private const val ACTION_RINGING_START = "com.hiennv.flutter_callkit_incoming.ACTION_RINGING_FOREGROUND_START"
         private const val ACTION_RINGING_STOP = "com.hiennv.flutter_callkit_incoming.ACTION_RINGING_FOREGROUND_STOP"
         private const val RING_GUARD_INTERVAL_MS = 2000L
+        private const val ACTION_STOP = "com.hiennv.flutter_callkit_incoming.ACTION_SERVICE_STOP"
 
         /**
          * Messagenius fork: keeps the process in the foreground while an incoming call rings,
@@ -91,9 +92,20 @@ class CallkitNotificationService : Service() {
             }
         }
 
+        /**
+         * Messagenius fork: stops through the service's own queue. A plain stopService() that
+         * lands before a pending startForegroundService() reached onStartCommand() crashes the
+         * app with ForegroundServiceDidNotStartInTimeException (call ended right after it
+         * started); queued, the pending start calls startForeground() first.
+         */
         fun stopService(context: Context) {
-            val intent = Intent(context, CallkitNotificationService::class.java)
-            context.stopService(intent)
+            val intent = Intent(context, CallkitNotificationService::class.java).apply { action = ACTION_STOP }
+            try {
+                context.startService(intent)
+            } catch (e: Exception) {
+                // Background start not allowed: no start can be pending either, stop directly.
+                context.stopService(Intent(context, CallkitNotificationService::class.java))
+            }
         }
 
     }
@@ -142,6 +154,13 @@ class CallkitNotificationService : Service() {
             }
             ACTION_RINGING_STOP -> {
                 stopRingingForeground(bundle)
+                return START_NOT_STICKY
+            }
+            ACTION_STOP -> {
+                hasOngoingNotification = false
+                ringingTimeoutHandler.removeCallbacksAndMessages(null)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
                 return START_NOT_STICKY
             }
         }
