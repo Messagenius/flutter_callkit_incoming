@@ -1,5 +1,6 @@
 package com.hiennv.flutter_callkit_incoming
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
@@ -9,6 +10,7 @@ import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
 import android.util.Log
 import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 
 @RequiresApi(Build.VERSION_CODES.M)
 class InAppCallManager(private val context: Context) {
@@ -34,6 +36,13 @@ class InAppCallManager(private val context: Context) {
         /** Messagenius fork: the manifest allows Telecom and the app turned it on at runtime. */
         fun isSelfManagedTelecomEnabled(context: Context): Boolean =
             isSelfManagedTelecomCapable(context) && getBoolean(context, PREF_SELF_MANAGED, false)
+
+        /** Messagenius fork: whether a call starting now goes through Telecom. */
+        fun shouldUseTelecom(context: Context): Boolean =
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                isSelfManagedTelecomEnabled(context) &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.MANAGE_OWN_CALLS) ==
+                PackageManager.PERMISSION_GRANTED
 
         fun applySelfManagedTelecom(context: Context, on: Boolean) {
             putBoolean(context, PREF_SELF_MANAGED, on)

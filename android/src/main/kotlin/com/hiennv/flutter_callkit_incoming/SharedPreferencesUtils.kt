@@ -34,6 +34,16 @@ fun addCall(context: Context?, data: Data, isAccepted: Boolean = false) {
     putString(context, "ACTIVE_CALLS", Utils.getGsonInstance().writeValueAsString(arrayData))
 }
 
+/** Messagenius fork: Telecom refused the call, so it runs without Telecom from now on. */
+fun markCallNotTelecom(context: Context?, id: String) {
+    val json = getString(context, "ACTIVE_CALLS", "[]")
+    val arrayData: ArrayList<Data> = Utils.getGsonInstance()
+        .readValue(json, object : TypeReference<ArrayList<Data>>() {})
+    val currentData = arrayData.find { it.id == id } ?: return
+    currentData.isTelecom = false
+    putString(context, "ACTIVE_CALLS", Utils.getGsonInstance().writeValueAsString(arrayData))
+}
+
 fun removeCall(context: Context?, data: Data) {
     val json = getString(context, "ACTIVE_CALLS", "[]")
     Log.d("JSON", json!!)

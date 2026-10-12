@@ -122,13 +122,12 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
     @SuppressLint("MissingPermission")
     private fun registerTelecomIncomingCall(context: Context, data: Bundle) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        if (!InAppCallManager.isSelfManagedTelecomEnabled(context)) return
         val parsed = try {
             Data.fromBundle(data)
         } catch (e: Exception) {
             null
         } ?: return
-        if (parsed.id.isEmpty()) return
+        if (parsed.id.isEmpty() || !parsed.isTelecom) return
         if (CallkitConnection.find(parsed.id) != null) {
             Log.d(TAG, "Telecom call already registered id=${parsed.id} — skip")
             return
@@ -154,8 +153,10 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
             Log.d(TAG, "Telecom addNewIncomingCall id=${parsed.id}")
         } catch (e: SecurityException) {
             Log.w(TAG, "Telecom addNewIncomingCall rejected: ${e.message}")
+            refuseTelecom(data, parsed.id)
         } catch (e: Exception) {
             Log.w(TAG, "Telecom addNewIncomingCall error: ${e.message}")
+            refuseTelecom(data, parsed.id)
         }
     }
 
@@ -170,14 +171,13 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
     @SuppressLint("MissingPermission")
     private fun registerTelecomOutgoingCall(context: Context, data: Bundle) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        // Messagenius fork: outgoing calls follow the same opt-in as incoming ones.
-        if (!InAppCallManager.isSelfManagedTelecomEnabled(context)) return
         val parsed = try {
             Data.fromBundle(data)
         } catch (e: Exception) {
             null
         } ?: return
-        if (parsed.id.isEmpty()) return
+        // Messagenius fork: outgoing calls follow the same per-call decision as incoming ones.
+        if (parsed.id.isEmpty() || !parsed.isTelecom) return
         if (CallkitConnection.find(parsed.id) != null) {
             Log.d(TAG, "Telecom call already registered id=${parsed.id} — skip")
             return
@@ -204,9 +204,16 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
             Log.d(TAG, "Telecom placeCall id=${parsed.id}")
         } catch (e: SecurityException) {
             Log.w(TAG, "Telecom placeCall rejected: ${e.message}")
+            refuseTelecom(data, parsed.id)
         } catch (e: Exception) {
             Log.w(TAG, "Telecom placeCall error: ${e.message}")
+            refuseTelecom(data, parsed.id)
         }
+    }
+
+    private fun refuseTelecom(data: Bundle, id: String) {
+        data.putBoolean(CallkitConstants.EXTRA_CALLKIT_IS_TELECOM, false)
+        FlutterCallkitIncomingPlugin.onTelecomRefused(id)
     }
 
     private fun driveTelecomConnection(context: Context, data: Bundle, action: String) {

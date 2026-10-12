@@ -140,6 +140,10 @@ data class Data(val args: Map<String, Any?>) {
     @JsonProperty("from")
     var from: String = ""
 
+    // Messagenius fork: decided once when the call starts; true while Telecom hosts it.
+    @JsonProperty("isTelecom")
+    var isTelecom: Boolean = false
+
     init {
         var android: Map<String, Any?>? = args["android"] as? HashMap<String, Any?>?
         android = android ?: args
@@ -333,6 +337,7 @@ data class Data(val args: Map<String, Any?>) {
             isFullScreen,
         )
         bundle.putString(CallkitConstants.EXTRA_CALLKIT_ACTION_FROM, from)
+        bundle.putBoolean(CallkitConstants.EXTRA_CALLKIT_IS_TELECOM, isTelecom)
         return bundle
     }
 
@@ -441,6 +446,7 @@ data class Data(val args: Map<String, Any?>) {
                 true
             )
             data.from = bundle.getString(CallkitConstants.EXTRA_CALLKIT_ACTION_FROM, "")
+            data.isTelecom = bundle.getBoolean(CallkitConstants.EXTRA_CALLKIT_IS_TELECOM, false)
             return data
         }
     }

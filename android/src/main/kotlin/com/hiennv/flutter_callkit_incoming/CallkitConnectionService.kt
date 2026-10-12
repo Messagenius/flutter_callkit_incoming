@@ -78,6 +78,7 @@ class CallkitConnectionService : ConnectionService() {
     ) {
         super.onCreateIncomingConnectionFailed(connectionManagerPhoneAccount, request)
         Log.w(TAG, "onCreateIncomingConnectionFailed")
+        fallBackFromTelecom(request)
     }
 
     override fun onCreateOutgoingConnection(
@@ -118,6 +119,16 @@ class CallkitConnectionService : ConnectionService() {
     ) {
         super.onCreateOutgoingConnectionFailed(connectionManagerPhoneAccount, request)
         Log.w(TAG, "onCreateOutgoingConnectionFailed")
+        fallBackFromTelecom(request)
+    }
+
+    /** Messagenius fork: Telecom refused the call after accepting it. */
+    private fun fallBackFromTelecom(request: ConnectionRequest?) {
+        val callBundle = extractCallBundle(request?.extras) ?: return
+        val id = Data.fromBundle(callBundle).id
+        if (id.isEmpty()) return
+        markCallNotTelecom(applicationContext, id)
+        FlutterCallkitIncomingPlugin.onTelecomRefused(id)
     }
 
     private fun extractCallBundle(extras: Bundle?): Bundle? {

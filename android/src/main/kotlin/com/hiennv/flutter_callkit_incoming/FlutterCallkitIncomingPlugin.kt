@@ -17,6 +17,7 @@ import io.flutter.plugin.common.*
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import java.lang.ref.WeakReference
+import java.util.concurrent.ConcurrentHashMap
 
 
 /** FlutterCallkitIncomingPlugin */
@@ -50,6 +51,17 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
 
         fun sendEvent(event: String, body: Map<String, Any?>) {
             send(event, body)
+        }
+
+        // Messagenius fork: calls that go through Telecom, known before Telecom creates them.
+        private val telecomCalls = ConcurrentHashMap.newKeySet<String>()
+
+        fun isTelecomCall(id: String): Boolean = telecomCalls.contains(id)
+
+        /** Messagenius fork: Telecom refused the call; it goes on without Telecom and Dart is told. */
+        fun onTelecomRefused(id: String) {
+            telecomCalls.remove(id)
+            sendEvent(CallkitConstants.ACTION_CALL_TELECOM_FAILED, mapOf("id" to id))
         }
 
         fun sendEventCustom(event: String, body: Map<String, Any>) {
@@ -189,6 +201,7 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
 
     public fun showIncomingNotification(data: Data) {
         data.from = "notification"
+        decideTelecom(data)
         //send BroadcastReceiver
         context?.sendBroadcast(
             CallkitIncomingBroadcastReceiver.getIntentIncoming(
@@ -203,6 +216,7 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
     }
 
     public fun startCall(data: Data) {
+        decideTelecom(data)
         context?.sendBroadcast(
             CallkitIncomingBroadcastReceiver.getIntentStart(
                 requireNotNull(context),
@@ -231,6 +245,12 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
             )
         }
         removeAllCalls(context)
+    }
+
+    private fun decideTelecom(data: Data) {
+        val ctx = context ?: return
+        data.isTelecom = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && InAppCallManager.shouldUseTelecom(ctx)
+        if (data.isTelecom) telecomCalls.add(data.id)
     }
 
     fun sendEventCustom(body: Map<String, Any>) {
@@ -270,6 +290,7 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
                 "showCallkitIncoming" -> {
                     val data = Data(call.arguments() ?: HashMap())
                     data.from = "notification"
+                    decideTelecom(data)
                     //send BroadcastReceiver
                     context?.sendBroadcast(
                         CallkitIncomingBroadcastReceiver.getIntentIncoming(
@@ -297,6 +318,7 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
 
                 "startCall" -> {
                     val data = Data(call.arguments() ?: HashMap())
+                    decideTelecom(data)
                     context?.sendBroadcast(
                         CallkitIncomingBroadcastReceiver.getIntentStart(
                             requireNotNull(context),
