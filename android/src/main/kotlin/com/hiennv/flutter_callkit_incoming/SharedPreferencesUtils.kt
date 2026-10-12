@@ -93,6 +93,19 @@ fun getLong(context: Context?, key: String, defaultValue: Long = 0L): Long? {
     return prefs?.getLong(key, defaultValue)
 }
 
+fun putBoolean(context: Context?, key: String, value: Boolean) {
+    if (context == null) return
+    initInstance(context)
+    editor?.putBoolean(key, value)
+    editor?.commit()
+}
+
+fun getBoolean(context: Context?, key: String, defaultValue: Boolean = false): Boolean {
+    if (context == null) return defaultValue
+    initInstance(context)
+    return prefs?.getBoolean(key, defaultValue) ?: defaultValue
+}
+
 fun remove(context: Context?, key: String) {
     if (context == null) return
     initInstance(context)

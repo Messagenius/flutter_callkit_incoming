@@ -18,9 +18,10 @@ class InAppCallManager(private val context: Context) {
         private const val TAG = "InAppCallManager"
 
         const val META_SELF_MANAGED = "com.hiennv.flutter_callkit_incoming.SELF_MANAGED_TELECOM"
+        private const val PREF_SELF_MANAGED = "self_managed_telecom"
 
         /** True when the host app sets [META_SELF_MANAGED] to true in its manifest. */
-        fun isSelfManagedTelecomEnabled(context: Context): Boolean = try {
+        fun isSelfManagedTelecomCapable(context: Context): Boolean = try {
             context.packageManager
                 .getApplicationInfo(context.packageName, PackageManager.GET_META_DATA)
                 .metaData
@@ -28,6 +29,21 @@ class InAppCallManager(private val context: Context) {
         } catch (e: Exception) {
             Log.w(TAG, "Could not read $META_SELF_MANAGED meta-data: ${e.message}")
             false
+        }
+
+        /** Messagenius fork: the manifest allows Telecom and the app turned it on at runtime. */
+        fun isSelfManagedTelecomEnabled(context: Context): Boolean =
+            isSelfManagedTelecomCapable(context) && getBoolean(context, PREF_SELF_MANAGED, false)
+
+        fun applySelfManagedTelecom(context: Context, on: Boolean) {
+            putBoolean(context, PREF_SELF_MANAGED, on)
+            val manager = InAppCallManager(context.applicationContext)
+            if (isSelfManagedTelecomEnabled(context)) {
+                manager.registerPhoneAccount()
+            } else if (CallkitConnection.activeCount() == 0) {
+                // Unregistering would drop a Telecom call in progress; the next start cleans up.
+                manager.unregisterPhoneAccount()
+            }
         }
     }
 
