@@ -130,6 +130,10 @@ class CallkitConnectionService : ConnectionService() {
         val id = Data.fromBundle(callBundle).id
         if (id.isEmpty()) return
         markCallNotTelecom(applicationContext, id)
+        // A ringing call gets the foreground service it skipped for Telecom.
+        getDataActiveCalls(applicationContext).firstOrNull { it.id == id && !it.isAccepted }?.let {
+            CallkitNotificationService.startRinging(applicationContext, it.toBundle())
+        }
         FlutterCallkitIncomingPlugin.onTelecomRefused(id)
     }
 

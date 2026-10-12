@@ -52,6 +52,7 @@ class CallkitConnection(
         private const val TAG = "CallkitConnection"
         private const val RESUME_POLL_GRACE_MS = 2000L
         private const val RESUME_POLL_INTERVAL_MS = 1000L
+        private const val RING_GUARD_INTERVAL_MS = 2000L
 
         /** Bundle key — pass the full call Data bundle through Telecom extras. */
         const val EXTRA_CALL_BUNDLE = "com.hiennv.flutter_callkit_incoming.CALL_BUNDLE"
@@ -167,7 +168,28 @@ class CallkitConnection(
     override fun onSilence() {
         super.onSilence()
         Log.d(TAG, "onSilence id=$callId")
-        FlutterCallkitIncomingPlugin.getInstance()?.getCallkitSoundPlayerManager()?.stop()
+        FlutterCallkitIncomingPlugin.getInstance()?.getCallkitSoundPlayerManager()?.fadeOutAndStop()
+    }
+
+    // Messagenius fork: the ring guard of the ringing foreground service, which Telecom calls skip.
+    // The ring stops once the user can no longer see the call (incoming channel turned off).
+    private val ringGuard = object : Runnable {
+        override fun run() {
+            if (state != STATE_RINGING) return
+            val plugin = FlutterCallkitIncomingPlugin.getInstance()
+            val player = plugin?.getCallkitSoundPlayerManager()
+            if (player?.isPlaying == true && plugin.getCallkitNotificationManager()?.incomingChannelEnabled() == false) {
+                Log.w(TAG, "Ring guard: no visible incoming-call notification, silencing id=$callId")
+                player.stop()
+            }
+            watcherHandler.postDelayed(this, RING_GUARD_INTERVAL_MS)
+        }
+    }
+
+    override fun onStateChanged(state: Int) {
+        super.onStateChanged(state)
+        watcherHandler.removeCallbacks(ringGuard)
+        if (state == STATE_RINGING) watcherHandler.postDelayed(ringGuard, RING_GUARD_INTERVAL_MS)
     }
 
     override fun onUnhold() {

@@ -64,7 +64,7 @@ class CallkitNotificationService : Service() {
          */
         fun startRinging(context: Context, data: Bundle) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-            if (InAppCallManager.isSelfManagedTelecomEnabled(context)) return
+            if (isTelecomCall(context, data)) return
             val intent = Intent(context, CallkitNotificationService::class.java).apply {
                 action = ACTION_RINGING_START
                 putExtra(CallkitConstants.EXTRA_CALLKIT_INCOMING_DATA, data)
@@ -77,10 +77,17 @@ class CallkitNotificationService : Service() {
             }
         }
 
+        /** Bundles coming from Dart do not carry the flag; the stored call does. */
+        private fun isTelecomCall(context: Context, data: Bundle): Boolean {
+            if (data.getBoolean(CallkitConstants.EXTRA_CALLKIT_IS_TELECOM, false)) return true
+            val id = data.getString(CallkitConstants.EXTRA_CALLKIT_ID, "")
+            return getDataActiveCalls(context).any { it.id == id && it.isTelecom }
+        }
+
         /** Messagenius fork: the incoming call stopped ringing (answered, declined, ended). */
         fun stopRinging(context: Context, data: Bundle) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-            if (InAppCallManager.isSelfManagedTelecomEnabled(context)) return
+            if (isTelecomCall(context, data)) return
             val intent = Intent(context, CallkitNotificationService::class.java).apply {
                 action = ACTION_RINGING_STOP
                 putExtra(CallkitConstants.EXTRA_CALLKIT_INCOMING_DATA, data)
