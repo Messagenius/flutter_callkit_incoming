@@ -140,6 +140,41 @@ class FlutterCallkitIncoming {
     await _channel.invokeMethod("silenceRinging");
   }
 
+  /// Messagenius fork: lets calls go through self-managed Telecom on Android
+  /// when the manifest allows it. Returns whether Telecom is now on.
+  static Future<bool> setSelfManagedTelecom(bool enabled) async {
+    return await _channel.invokeMethod<bool>(
+            "setSelfManagedTelecom", enabled) ??
+        false;
+  }
+
+  /// Messagenius fork: whether Telecom hosts the call [id] (Android only).
+  static Future<bool> isTelecomCall(String id) async {
+    return await _channel.invokeMethod<bool>("isTelecomCall", {'id': id}) ??
+        false;
+  }
+
+  /// Messagenius fork: asks Telecom to route the call [id] to [route]
+  /// (`earpiece`, `speaker`, `bluetooth`, `wired`); [address] picks a
+  /// Bluetooth device. False when Telecom does not host the call.
+  static Future<bool> setAudioRoute(String id, String route,
+      {String? address}) async {
+    return await _channel.invokeMethod<bool>(
+            "setAudioRoute", {'id': id, 'route': route, 'address': address}) ??
+        false;
+  }
+
+  /// Messagenius fork: the last audio route Telecom reported for the call
+  /// [id], or null when Telecom does not host it or has not reported yet.
+  static Future<CallEventActionCallAudioRoute?> getAudioRoute(String id) async {
+    final body = await _channel.invokeMethod("getAudioRoute", {'id': id});
+    if (body is! Map) return null;
+    return _parseCallEvent({
+      'event': CallEventConstants.actionCallAudioRoute,
+      'body': body,
+    }) as CallEventActionCallAudioRoute?;
+  }
+
   /// Start an Outgoing call.
   /// On iOS, using Callkit(create a history into the Phone app).
   /// On Android, Nothing(only callback event listener).
@@ -362,6 +397,36 @@ class FlutterCallkitIncoming {
               '[ACTION_CALL_TOGGLE_AUDIO_SESSION] id is null.');
         }
         return CallEventActionCallToggleAudioSession(isActive);
+      case CallEventConstants.actionCallAudioRoute:
+        final body = _convertMap(data['body']) as Map<String, dynamic>?;
+        final id = body?['id'] as String?;
+        final route = body?['route'] as String?;
+        if (id == null || route == null) {
+          throw const FormatException('[ACTION_CALL_AUDIO_ROUTE] id is null.');
+        }
+        final devices = (body?['btDevices'] as List?) ?? const [];
+        return CallEventActionCallAudioRoute(
+          id: id,
+          route: route,
+          available: List<String>.from(body?['available'] as List? ?? const []),
+          bluetoothDevices: devices
+              .whereType<Map<String, dynamic>>()
+              .map((d) => CallAudioBluetoothDevice(
+                    name: d['name'] as String? ?? '',
+                    address: d['address'] as String? ?? '',
+                  ))
+              .toList(),
+          bluetoothAddress: body?['address'] as String?,
+          muted: body?['muted'] as bool? ?? false,
+        );
+      case CallEventConstants.actionCallTelecomFailed:
+        final body = data['body'] as Map<Object?, Object?>?;
+        final id = body?['id'] as String?;
+        if (id == null) {
+          throw const FormatException(
+              '[ACTION_CALL_TELECOM_FAILED] id is null.');
+        }
+        return CallEventActionCallTelecomFailed(id);
       case CallEventConstants.actionCallCustom:
         final body = _convertMap(data['body']) as Map<String, dynamic>?;
         if (body == null) {

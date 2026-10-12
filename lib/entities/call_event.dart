@@ -33,6 +33,10 @@ abstract class CallEventConstants {
       'com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_AUDIO_SESSION';
   static const String actionCallCustom =
       'com.hiennv.flutter_callkit_incoming.ACTION_CALL_CUSTOM';
+  static const String actionCallAudioRoute =
+      'com.hiennv.flutter_callkit_incoming.ACTION_CALL_AUDIO_ROUTE';
+  static const String actionCallTelecomFailed =
+      'com.hiennv.flutter_callkit_incoming.ACTION_CALL_TELECOM_FAILED';
 }
 
 /// Base sealed class for CallEvent
@@ -234,4 +238,61 @@ class CallEventActionCallCustom extends CallEvent {
 
   @override
   String toString() => 'CallEventActionCallCustom(body: $body)';
+}
+
+/// Messagenius fork: a Bluetooth device Telecom can route the call to.
+class CallAudioBluetoothDevice {
+  const CallAudioBluetoothDevice({required this.name, required this.address});
+
+  final String name;
+
+  /// MAC address before Android 14, endpoint id from Android 14.
+  final String address;
+
+  @override
+  String toString() => 'CallAudioBluetoothDevice(name: $name)';
+}
+
+/// Messagenius fork: Telecom changed the audio route of a call (Android).
+class CallEventActionCallAudioRoute extends CallEvent {
+  const CallEventActionCallAudioRoute({
+    required this.id,
+    required this.route,
+    required this.available,
+    required this.bluetoothDevices,
+    required this.bluetoothAddress,
+    required this.muted,
+  });
+
+  @override
+  String get eventName => CallEventConstants.actionCallAudioRoute;
+
+  final String id;
+
+  /// `earpiece`, `speaker`, `bluetooth` or `wired`.
+  final String route;
+  final List<String> available;
+  final List<CallAudioBluetoothDevice> bluetoothDevices;
+
+  /// The active Bluetooth device when [route] is `bluetooth`.
+  final String? bluetoothAddress;
+  final bool muted;
+
+  @override
+  String toString() =>
+      'CallEventActionCallAudioRoute(id: $id, route: $route,'
+      ' available: $available, bluetoothDevices: $bluetoothDevices)';
+}
+
+/// Messagenius fork: Telecom refused the call, which goes on without it.
+class CallEventActionCallTelecomFailed extends CallEvent {
+  const CallEventActionCallTelecomFailed(this.id);
+
+  @override
+  String get eventName => CallEventConstants.actionCallTelecomFailed;
+
+  final String id;
+
+  @override
+  String toString() => 'CallEventActionCallTelecomFailed(id: $id)';
 }
