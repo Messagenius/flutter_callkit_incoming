@@ -170,6 +170,8 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
     @SuppressLint("MissingPermission")
     private fun registerTelecomOutgoingCall(context: Context, data: Bundle) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        // Messagenius fork: outgoing calls follow the same opt-in as incoming ones.
+        if (!InAppCallManager.isSelfManagedTelecomEnabled(context)) return
         val parsed = try {
             Data.fromBundle(data)
         } catch (e: Exception) {
