@@ -143,10 +143,7 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
         val handle = manager.getPhoneAccountHandle()
         val extras = Bundle().apply {
             putBundle(CallkitConnection.EXTRA_CALL_BUNDLE, data)
-            putInt(
-                TelecomManager.EXTRA_INCOMING_VIDEO_STATE,
-                android.telecom.VideoProfile.STATE_AUDIO_ONLY,
-            )
+            putInt(TelecomManager.EXTRA_INCOMING_VIDEO_STATE, CallkitConnection.videoStateOf(parsed))
         }
         try {
             telecom.addNewIncomingCall(handle, extras)
@@ -197,6 +194,8 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
         val extras = Bundle().apply {
             putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, handle)
             putBundle(TelecomManager.EXTRA_OUTGOING_CALL_EXTRAS, outgoingExtras)
+            putInt(TelecomManager.EXTRA_START_CALL_WITH_VIDEO_STATE, CallkitConnection.videoStateOf(parsed))
+            if (parsed.type == 1) putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, true)
         }
         val address = parsed.handle.ifEmpty { parsed.id }
         try {
@@ -297,6 +296,7 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
 
             "${context.packageName}.${CallkitConstants.ACTION_CALL_ACCEPT_VIDEO}" -> {
                 try {
+                    driveTelecomConnection(context, data, CallkitConstants.ACTION_CALL_ACCEPT)
                     FlutterCallkitIncomingPlugin.notifyEventCallbacks(CallkitEventCallback.CallEvent.ACCEPT, data)
                     // Start the ongoing-call notification service (same as regular accept)
                     CallkitNotificationService.startServiceWithAction(

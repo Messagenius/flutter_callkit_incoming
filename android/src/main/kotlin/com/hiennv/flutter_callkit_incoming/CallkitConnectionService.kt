@@ -67,6 +67,7 @@ class CallkitConnectionService : ConnectionService() {
                 Uri.fromParts("tel", handle, null),
                 TelecomManager.PRESENTATION_ALLOWED,
             )
+            setVideoState(CallkitConnection.videoStateOf(data))
             setRinging()
         }
         return connection
@@ -108,6 +109,7 @@ class CallkitConnectionService : ConnectionService() {
                 Uri.fromParts("tel", handle, null),
                 TelecomManager.PRESENTATION_ALLOWED,
             )
+            setVideoState(CallkitConnection.videoStateOf(data))
             setDialing()
         }
         return connection

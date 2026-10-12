@@ -10,6 +10,7 @@ import android.os.Looper
 import android.telecom.Connection
 import android.telecom.DisconnectCause
 import android.telecom.TelecomManager
+import android.telecom.VideoProfile
 import android.util.Log
 import androidx.annotation.RequiresApi
 import java.util.concurrent.ConcurrentHashMap
@@ -68,6 +69,9 @@ class CallkitConnection(
         }
 
         fun activeCount(): Int = activeConnections.size
+
+        fun videoStateOf(data: Data): Int =
+            if (data.type == 1) VideoProfile.STATE_BIDIRECTIONAL else VideoProfile.STATE_AUDIO_ONLY
     }
 
     init {
