@@ -247,6 +247,9 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
         removeAllCalls(context)
     }
 
+    private fun telecomConnection(id: String?): CallkitConnection? =
+        if (id != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) CallkitConnection.find(id) else null
+
     private fun decideTelecom(data: Data) {
         val ctx = context ?: return
         data.isTelecom = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && InAppCallManager.shouldUseTelecom(ctx)
@@ -476,7 +479,35 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
                 }
 
                 "setAudioRoute" -> {
-                    reply.success(true)
+                    val args = call.arguments as? Map<*, *>
+                    val conn = telecomConnection(args?.get("id") as? String)
+                    val route = args?.get("route") as? String
+                    if (conn == null || route == null) {
+                        reply.success(false)
+                    } else {
+                        conn.requestRoute(route, args["address"] as? String)
+                        reply.success(true)
+                    }
+                }
+
+                "isTelecomCall" -> {
+                    val id = (call.arguments as? Map<*, *>)?.get("id") as? String
+                    reply.success(id != null && (isTelecomCall(id) || telecomConnection(id) != null))
+                }
+
+                "getAudioRoute" -> {
+                    val id = (call.arguments as? Map<*, *>)?.get("id") as? String
+                    reply.success(telecomConnection(id)?.currentRoute())
+                }
+
+                "setSelfManagedTelecom" -> {
+                    val ctx = requireNotNull(context)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        InAppCallManager.applySelfManagedTelecom(ctx, call.arguments as? Boolean ?: false)
+                        reply.success(InAppCallManager.isSelfManagedTelecomEnabled(ctx))
+                    } else {
+                        reply.success(false)
+                    }
                 }
 
                 else -> {
