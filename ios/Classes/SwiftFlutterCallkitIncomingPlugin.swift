@@ -361,6 +361,11 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     }
 
     @objc public func showCallkitIncoming(_ data: Data, fromPushKit: Bool, completion: @escaping () -> Void) {
+        self.showCallkitIncoming(data, fromPushKit: fromPushKit, reported: { _ in completion() })
+    }
+
+    // Same as the completion variant, but hands over CallKit's error, e.g. a call filtered by Focus.
+    @objc public func showCallkitIncoming(_ data: Data, fromPushKit: Bool, reported: @escaping (Error?) -> Void) {
         self.isFromPushKit = fromPushKit
         if(fromPushKit){
             self.data = data
@@ -389,7 +394,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         // completion() so iOS doesn't penalize the app for the missed deadline.
         guard let uuid = UUID(uuidString: data.uuid) else {
             NSLog("[CallkitIncoming] showCallkitIncoming: invalid UUID '\(data.uuid)' — ignored")
-            completion()
+            reported(nil)
             return
         }
 
@@ -402,7 +407,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
                 self.sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_INCOMING, data.toJSON())
                 self.endCallNotExist(data)
             }
-            completion()
+            reported(error)
         }
     }
     
@@ -1000,7 +1005,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     }
     
     
-    private func showMissedCallNotification(_ data: Data) {
+    @objc public func showMissedCallNotification(_ data: Data) {
         if(!data.isShowMissedCallNotification){
             return
         }
