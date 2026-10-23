@@ -73,6 +73,12 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
                 `package` = context.packageName
             }
 
+        fun getIntentDismiss(context: Context, data: Bundle?) =
+            Intent(context, CallkitIncomingBroadcastReceiver::class.java).apply {
+                action = "${context.packageName}.${CallkitConstants.ACTION_CALL_DISMISS}"
+                putExtra(CallkitConstants.EXTRA_CALLKIT_INCOMING_DATA, data)
+            }
+
         fun getIntentTimeout(context: Context, data: Bundle?) =
             Intent().apply {
                 setClassName(context.packageName, "com.hiennv.flutter_callkit_incoming.CallkitIncomingBroadcastReceiver")
@@ -336,6 +342,17 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
                     getCallkitNotificationManager()?.clearIncomingNotification(data, false)
                     CallkitNotificationService.stopService(context)
                     sendEventFlutter(CallkitConstants.ACTION_CALL_ENDED, data)
+                    removeCall(context, Data.fromBundle(data))
+                } catch (error: Exception) {
+                    Log.e(TAG, null, error)
+                }
+            }
+
+            "${context.packageName}.${CallkitConstants.ACTION_CALL_DISMISS}" -> {
+                try {
+                    driveTelecomConnection(context, data, CallkitConstants.ACTION_CALL_ENDED)
+                    getCallkitNotificationManager()?.clearIncomingNotification(data, false)
+                    CallkitNotificationService.stopService(context)
                     removeCall(context, Data.fromBundle(data))
                 } catch (error: Exception) {
                     Log.e(TAG, null, error)

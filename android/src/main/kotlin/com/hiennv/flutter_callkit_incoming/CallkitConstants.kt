@@ -10,6 +10,8 @@ object CallkitConstants {
         "com.hiennv.flutter_callkit_incoming.ACTION_CALL_DECLINE"
     const val ACTION_CALL_ENDED =
         "com.hiennv.flutter_callkit_incoming.ACTION_CALL_ENDED"
+    const val ACTION_CALL_DISMISS =
+        "com.hiennv.flutter_callkit_incoming.ACTION_CALL_DISMISS"
     const val ACTION_CALL_TOGGLE_MUTE =
         "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_MUTE"
     const val ACTION_CALL_TOGGLE_HOLD =
