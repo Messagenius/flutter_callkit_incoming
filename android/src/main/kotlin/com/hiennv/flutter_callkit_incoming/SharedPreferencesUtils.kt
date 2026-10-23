@@ -16,8 +16,8 @@ private fun initInstance(context: Context) {
 }
 
 fun addBackgroundCallback(context: Context?, pluginHandler: Long, userHandle: Long) {
-   putLong(context, "CALLBACK_HANDLE", pluginHandler)
-   putLong(context, "CALLBACK_USER_HANDLE", userHandle)
+    putLong(context, "CALLBACK_HANDLE", pluginHandler)
+    putLong(context, "CALLBACK_USER_HANDLE", userHandle)
 }
 
 fun addCall(context: Context?, data: Data, isAccepted: Boolean = false) {
@@ -31,6 +31,16 @@ fun addCall(context: Context?, data: Data, isAccepted: Boolean = false) {
         data.isAccepted = isAccepted
         arrayData.add(data)
     }
+    putString(context, "ACTIVE_CALLS", Utils.getGsonInstance().writeValueAsString(arrayData))
+}
+
+/** Messagenius fork: Telecom refused the call, so it runs without Telecom from now on. */
+fun markCallNotTelecom(context: Context?, id: String) {
+    val json = getString(context, "ACTIVE_CALLS", "[]")
+    val arrayData: ArrayList<Data> = Utils.getGsonInstance()
+        .readValue(json, object : TypeReference<ArrayList<Data>>() {})
+    val currentData = arrayData.find { it.id == id } ?: return
+    currentData.isTelecom = false
     putString(context, "ACTIVE_CALLS", Utils.getGsonInstance().writeValueAsString(arrayData))
 }
 
@@ -93,9 +103,35 @@ fun getLong(context: Context?, key: String, defaultValue: Long = 0L): Long? {
     return prefs?.getLong(key, defaultValue)
 }
 
+fun putBoolean(context: Context?, key: String, value: Boolean) {
+    if (context == null) return
+    initInstance(context)
+    editor?.putBoolean(key, value)
+    editor?.commit()
+}
+
+fun getBoolean(context: Context?, key: String, defaultValue: Boolean = false): Boolean {
+    if (context == null) return defaultValue
+    initInstance(context)
+    return prefs?.getBoolean(key, defaultValue) ?: defaultValue
+}
+
 fun remove(context: Context?, key: String) {
     if (context == null) return
     initInstance(context)
     editor?.remove(key)
     editor?.commit()
+}
+
+fun saveHandle(context: Context?, key: String, handle: Int) {
+    if (context == null) return
+    initInstance(context)
+    editor?.putInt(key, handle)
+    editor?.commit()
+}
+
+fun getRawHandle(context: Context?, key: String): Int? {
+    if (context == null) return null
+    initInstance(context)
+    return prefs?.getInt(key, 0)
 }

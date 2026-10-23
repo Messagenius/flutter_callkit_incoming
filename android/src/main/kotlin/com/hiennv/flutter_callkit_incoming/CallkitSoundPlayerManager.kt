@@ -1,3 +1,10 @@
+//  Modification by Signify in this file are under the following license:
+//
+//  Copyright 2024, Signify Holding
+//  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+//  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+//  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 package com.hiennv.flutter_callkit_incoming
 
 import android.content.BroadcastReceiver
@@ -11,6 +18,8 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -20,18 +29,30 @@ import java.util.TimerTask
 
 class CallkitSoundPlayerManager(private val context: Context) {
 
+    companion object {
+        /** ringtonePath value that shows the incoming call without a ringtone (vibration follows the ringer mode). */
+        const val SILENT_RINGTONE = "silent"
+    }
+
     private var vibrator: Vibrator? = null
     private var audioManager: AudioManager? = null
 
     private var ringtone: Ringtone? = null
 
-    private var isPlaying: Boolean = false
+    // Start Signify modification
+    var isPlaying: Boolean = false
+        private set
+    // End Signify modification
 
     private var keepRingingForFullScreenIntent: Boolean = false
 
-
     inner class ScreenOffCallkitIncomingBroadcastReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
+            // Messagenius fork: unlocking the phone silences the ring too.
+            if (intent.action == Intent.ACTION_USER_PRESENT) {
+                if (isPlaying) fadeOutAndStop()
+                return
+            }
             if (isPlaying && !keepRingingForFullScreenIntent) {
                 stop()
             }
@@ -45,11 +66,51 @@ class CallkitSoundPlayerManager(private val context: Context) {
     fun play(data: Bundle) {
         this.isPlaying = true
         this.prepare()
-        this.playSound(data)
-        this.playVibrator()
 
-        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
+        // Messagenius fork: ringtonePath "silent" (the app's own Do Not Disturb) skips the
+        // ringtone; the phone still vibrates if its ringer mode vibrates for calls.
+        val silent = data.getString(CallkitConstants.EXTRA_CALLKIT_RINGTONE_PATH, "") == SILENT_RINGTONE
+
+        // Honour the ringer mode before making any sound: SILENT is fully quiet and
+        // VIBRATE vibrates without a ringtone. The check used to live inside
+        // playVibrator(), which left the ringtone audible in silent mode.
+        val ringerMode = (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.ringerMode
+        if (ringerMode != AudioManager.RINGER_MODE_SILENT) {
+            if (ringerMode != AudioManager.RINGER_MODE_VIBRATE && !silent) {
+                this.playSound(data)
+            }
+            this.playVibrator()
+        }
+
+        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF).apply { addAction(Intent.ACTION_USER_PRESENT) }
         context.registerReceiver(screenOffCallkitIncomingBroadcastReceiver, filter)
+    }
+
+    /**
+     * Messagenius fork: silences the ring without ending the call, fading the
+     * ringtone out over [durationMs] (API 28+, where Ringtone has a volume).
+     * The incoming notification and the call stay as they are.
+     */
+    fun fadeOutAndStop(durationMs: Long = 400L) {
+        if (!isPlaying) return
+        vibrator?.cancel()
+        val fading = ringtone
+        if (fading == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.P || !fading.isPlaying) {
+            stop()
+            return
+        }
+        val steps = 8
+        val handler = Handler(Looper.getMainLooper())
+        for (step in 1..steps) {
+            handler.postDelayed({
+                if (ringtone !== fading) return@postDelayed
+                if (step == steps) {
+                    stop()
+                } else {
+                    fading.volume = 1f - step.toFloat() / steps
+                }
+            }, durationMs * step / steps)
+        }
     }
 
     fun stop() {
@@ -92,22 +153,29 @@ class CallkitSoundPlayerManager(private val context: Context) {
             context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
         audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        when (audioManager?.ringerMode) {
-            AudioManager.RINGER_MODE_SILENT -> {
-            }
+        if (audioManager?.ringerMode == AudioManager.RINGER_MODE_SILENT) return
 
-            else -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator?.vibrate(
-                        VibrationEffect.createWaveform(
-                            longArrayOf(0L, 1000L, 1000L),
-                            0
-                        )
-                    )
-                } else {
-                    vibrator?.vibrate(longArrayOf(0L, 1000L, 1000L), 0)
-                }
+        val pattern = longArrayOf(0L, 1000L, 1000L)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            val audioAttrs = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .setLegacyStreamType(AudioManager.STREAM_RING)
+                .build()
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(
+                    VibrationEffect.createWaveform(pattern, 0),
+                    audioAttrs
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(pattern, 0, audioAttrs)
             }
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator?.vibrate(pattern, 0)
         }
     }
 

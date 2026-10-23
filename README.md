@@ -26,6 +26,19 @@ Our top sponsors are shown below!
   <img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174">
 </a>
 
+## 📌 Table of Contents
+- [⭐ Features](#-features)
+- [🚀 Installation](#-installation)
+  - [1. Install Packages](#1-install-packages)
+  - [2. Configure Project](#2-configure-project)
+    - [Android Configuration](#android)
+    - [iOS Configuration](#ios)
+    - [Swift Package Manager (SPM) Support](#swift-package-manager-spm-support-flutter-324)
+  - [3. Usage](#3-usage)
+- [📋 Properties](#-properties)
+- [📱 Pushkit Setup](#-pushkit---received-voip-and-wake-app-from-terminated-state-ios-only)
+- [🎯 Demo](#-demo)
+
 ## ⭐ Features
 
 - Show an incoming call
@@ -33,11 +46,11 @@ Our top sponsors are shown below!
 - Custom UI Android/Callkit for iOS
 - Example using Pushkit/VoIP for iOS
 
-## ⚠️ iOS: ONLY WORKING ON REAL DEVICE
-
-**Please make sure setup/using [PUSHKIT](https://github.com/hiennguyen92/flutter_callkit_incoming/blob/master/PUSHKIT.md) FOR VOIP**
-
-> **Note:** Please do not use on simulator (Callkit framework not working on simulator)
+> [!WARNING]
+> ### iOS: ONLY WORKING ON REAL DEVICE
+> **Please make sure setup/using [PUSHKIT](https://github.com/hiennguyen92/flutter_callkit_incoming/blob/master/PUSHKIT.md) FOR VOIP**
+>
+> *Note:* Please do not use on simulator (Callkit framework is not fully supported on simulator for incoming VoIP calls).
 
 ## 🚀 Installation
 
@@ -93,6 +106,17 @@ The following rule needs to be added in the `proguard-rules.pro` to avoid obfusc
     <string>processing</string> <!-- you can add this if needed -->
 </array>
 ```
+
+#### Swift Package Manager (SPM) Support (Flutter 3.24+)
+
+This plugin natively supports Swift Package Manager (SPM). To configure your project to build using SPM instead of CocoaPods, run:
+
+```bash
+flutter config --enable-swift-package-manager
+```
+
+> [!IMPORTANT]
+> Swift Package Manager is highly recommended for modern Flutter projects as CocoaPods is in maintenance mode and will become read-only in December 2026.
 
 ### 3. Usage
 
@@ -542,38 +566,120 @@ FlutterCallkitIncomingPlugin.getInstance().sendEventCustom(body: Map<String, Any
 ```
 
 > **Please check full example:** [Example](https://github.com/hiennguyen92/flutter_callkit_incoming/blob/master/example/ios/Runner/AppDelegate.swift)
+**Create MMainApplication.kt in your source directory **
 
-**MainActivity.kt:**
+**MainApplication.kt:**
 ```kotlin
-class MainActivity: FlutterActivity(){
+import android.app.Application
+import android.os.Bundle
+import android.content.Context
+import android.content.Intent
+import android.util.Log
+import com.hiennv.flutter_callkit_incoming.CallkitEventCallback
+import com.hiennv.flutter_callkit_incoming.FlutterCallkitIncomingPlugin
+import io.flutter.embedding.android.FlutterActivity
+import org.json.JSONObject
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
 
-    private var callkitEventCallback = object: CallkitEventCallback{
-        override fun onCallEvent(event: CallkitEventCallback.CallEvent, callData: Bundle) {
-            when (event) {
-                CallkitEventCallback.CallEvent.ACCEPT -> {
-                    // Do something with answer
-                }
-                CallkitEventCallback.CallEvent.DECLINE -> {
-                    // Do something with decline
-                }
-            }
+private const val BASE_URL = "https://your-url/"
+private const val TAG = "com.medeet.app.MainApplication"
+
+
+class MainApplication : Application() {  // or FlutterApplication
+
+
+  private var callkitEventCallback = object: CallkitEventCallback{
+    override fun onCallEvent(event: CallkitEventCallback.CallEvent, callData: Bundle) {
+      when (event) {
+        CallkitEventCallback.CallEvent.ACCEPT -> {
+          // Save accepted call id to SharedPreferences
+          Log.d(TAG, "onAccept - Kotlin")
+
         }
+        CallkitEventCallback.CallEvent.DECLINE -> {
+          Log.d(TAG, "on Decline - Kotlin")
+          val extra = callData.getSerializable("EXTRA_CALLKIT_EXTRA") as? HashMap<String, Any?>
+          Log.d(TAG, "on Decline - $extra")
+          sendDeclineCall(extra)
+        }
+        else -> {
+          // Handle other cases or do nothing
+        }
+      }
+
     }
+  }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        FlutterCallkitIncomingPlugin.registerEventCallback(callkitEventCallback)
+  //Replace with your custom integration
+  private fun sendDeclineCall(extra: HashMap<String, Any?>?) {
+    // Read access token from SharedPreferences
+    val prefs = applicationContext.getSharedPreferences(
+      "FlutterSharedPreferences", Context.MODE_PRIVATE
+    )
+    val accessToken = prefs.getString("flutter.native_access_token", null)
+
+    if (accessToken.isNullOrEmpty()) {
+      Log.d(TAG, "declineCall - No access token found")
+      return
     }
-
-    override fun onDestroy() {
-        FlutterCallkitIncomingPlugin.unregisterEventCallback(callkitEventCallback)
-        super.onDestroy()
-    }
+    val jsonBody = JSONObject((extra ?: emptyMap<String, Any?>()) as Map<*, *>)
 
 
+    Log.d(TAG, "declineCall - body: $jsonBody")
+
+    // Send request on background thread
+    Thread {
+      try {
+        val url = URL("$BASE_URL/declineCall")
+        val connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("Authorization", "Bearer $accessToken")
+        connection.doOutput = true
+
+        val writer = OutputStreamWriter(connection.outputStream)
+        writer.write(jsonBody.toString())
+        writer.flush()
+        writer.close()
+        val responseCode = connection.responseCode
+        Log.d(TAG, "declineCall - Response status: $responseCode")
+        connection.disconnect()
+      } catch (e: Exception) {
+        Log.e(TAG, "declineCall - Request error: ${e.message}")
+      }
+    }.start()
+  }
+
+  override fun onCreate() {
+    super.onCreate()
+    FlutterCallkitIncomingPlugin.registerEventCallback(callkitEventCallback)
+
+  }
 }
 ```
+***Add this to your app level build file***
+```
+   defaultConfig {
+     
+      ......
+        //Replace with your package name e.g "com.example.app.MainApplication"
+        manifestPlaceholders["applicationName"] = "com.example.flutter_callkit_incoming_example.MainApplication"
 
+    }
+```
+
+***Point ${applicationName} at your new class in Android manifest***
+```
+ <application
+        ....
+        android:name="${applicationName}"
+         <activity
+        
+
+```
 > **Please check full example:** [Example](https://github.com/hiennguyen92/flutter_callkit_incoming/blob/master/example/android/app/src/main/kotlin/com/example/flutter_callkit_incoming_example/MainActivity.kt
 )
 
@@ -666,7 +772,8 @@ Please check [PUSHKIT.md](https://github.com/hiennguyen92/flutter_callkit_incomi
 
 ## 📋 Todo
 
-- [ ] Run background
+- [X] Run background / background execution support (implemented via self-managed Telecom service & didActivate background replay cache)
+- [X] Swift Package Manager (SPM) support
 - [ ] Simplify the setup process
 - [X] Custom notification for iOS (Missing notification)
 - [X] Keep notification when calling

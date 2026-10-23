@@ -29,6 +29,8 @@ object CallkitConstants {
     const val ACTION_CALL_HELD = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_HELD"
     const val ACTION_CALL_UNHELD = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_UNHELD"
     const val ACTION_CALL_CONNECTED = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_CONNECTED"
+    const val ACTION_CALL_TELECOM_FAILED = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_TELECOM_FAILED"
+    const val ACTION_CALL_AUDIO_ROUTE = "com.hiennv.flutter_callkit_incoming.ACTION_CALL_AUDIO_ROUTE"
 
 
     const val EXTRA_CALLKIT_INCOMING_DATA = "EXTRA_CALLKIT_INCOMING_DATA"
@@ -85,4 +87,6 @@ object CallkitConstants {
     const val EXTRA_CALLKIT_IS_SHOW_FULL_LOCKED_SCREEN = "EXTRA_CALLKIT_IS_SHOW_FULL_LOCKED_SCREEN"
     const val EXTRA_CALLKIT_IS_IMPORTANT = "EXTRA_CALLKIT_IS_IMPORTANT"
     const val EXTRA_CALLKIT_IS_BOT = "EXTRA_CALLKIT_IS_BOT"
+    const val EXTRA_CALLKIT_IS_FULL_SCREEN = "EXTRA_CALLKIT_IS_FULL_SCREEN"
+    const val EXTRA_CALLKIT_IS_TELECOM = "EXTRA_CALLKIT_IS_TELECOM"
 }

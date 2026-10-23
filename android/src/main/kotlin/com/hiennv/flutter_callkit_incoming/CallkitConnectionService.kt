@@ -58,7 +58,7 @@ class CallkitConnectionService : ConnectionService() {
 
         Log.d(TAG, "onCreateIncomingConnection id=$callId caller=${data.nameCaller}")
 
-        val connection = CallkitConnection(callId, callBundle).apply {
+        val connection = CallkitConnection(applicationContext, callId, callBundle).apply {
             if (data.nameCaller.isNotEmpty()) {
                 setCallerDisplayName(data.nameCaller, TelecomManager.PRESENTATION_ALLOWED)
             }
@@ -67,6 +67,7 @@ class CallkitConnectionService : ConnectionService() {
                 Uri.fromParts("tel", handle, null),
                 TelecomManager.PRESENTATION_ALLOWED,
             )
+            setVideoState(CallkitConnection.videoStateOf(data))
             setRinging()
         }
         return connection
@@ -78,6 +79,7 @@ class CallkitConnectionService : ConnectionService() {
     ) {
         super.onCreateIncomingConnectionFailed(connectionManagerPhoneAccount, request)
         Log.w(TAG, "onCreateIncomingConnectionFailed")
+        fallBackFromTelecom(request)
     }
 
     override fun onCreateOutgoingConnection(
@@ -98,7 +100,7 @@ class CallkitConnectionService : ConnectionService() {
 
         Log.d(TAG, "onCreateOutgoingConnection id=$callId callee=${data.nameCaller}")
 
-        val connection = CallkitConnection(callId, callBundle).apply {
+        val connection = CallkitConnection(applicationContext, callId, callBundle).apply {
             if (data.nameCaller.isNotEmpty()) {
                 setCallerDisplayName(data.nameCaller, TelecomManager.PRESENTATION_ALLOWED)
             }
@@ -107,6 +109,7 @@ class CallkitConnectionService : ConnectionService() {
                 Uri.fromParts("tel", handle, null),
                 TelecomManager.PRESENTATION_ALLOWED,
             )
+            setVideoState(CallkitConnection.videoStateOf(data))
             setDialing()
         }
         return connection
@@ -118,6 +121,20 @@ class CallkitConnectionService : ConnectionService() {
     ) {
         super.onCreateOutgoingConnectionFailed(connectionManagerPhoneAccount, request)
         Log.w(TAG, "onCreateOutgoingConnectionFailed")
+        fallBackFromTelecom(request)
+    }
+
+    /** Messagenius fork: Telecom refused the call after accepting it. */
+    private fun fallBackFromTelecom(request: ConnectionRequest?) {
+        val callBundle = extractCallBundle(request?.extras) ?: return
+        val id = Data.fromBundle(callBundle).id
+        if (id.isEmpty()) return
+        markCallNotTelecom(applicationContext, id)
+        // A ringing call gets the foreground service it skipped for Telecom.
+        getDataActiveCalls(applicationContext).firstOrNull { it.id == id && !it.isAccepted }?.let {
+            CallkitNotificationService.startRinging(applicationContext, it.toBundle())
+        }
+        FlutterCallkitIncomingPlugin.onTelecomRefused(id)
     }
 
     private fun extractCallBundle(extras: Bundle?): Bundle? {
