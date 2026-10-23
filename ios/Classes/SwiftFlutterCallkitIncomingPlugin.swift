@@ -184,6 +184,15 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             }
             result(true)
             break
+        case "endCallSilently":
+            guard let args = call.arguments as? [String: Any] else {
+                result(true)
+                return
+            }
+            let reason = args["reason"] as? Int ?? 4
+            self.endCallSilently(Data(args: args), reason: reason)
+            result(true)
+            break
         case "muteCall":
             guard let args = call.arguments as? [String: Any] ,
                   let callId = args["id"] as? String,
@@ -467,6 +476,25 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         }
         let call = Call(uuid: uuid, data: data)
         self.callManager.endCall(call: call)
+    }
+
+    /// Reports the call as ended to CallKit without a CXEndCallAction, so no
+    /// decline/ended/timeout event reaches Flutter and the AppDelegate is not called.
+    @objc public func endCallSilently(_ data: Data, reason: Int) {
+        let uuidString = self.isFromPushKit ? (self.data?.uuid ?? data.uuid) : data.uuid
+        self.isFromPushKit = false
+        guard let uuid = UUID(uuidString: uuidString) else {
+            NSLog("[CallkitIncoming] endCallSilently: invalid UUID '\(uuidString)' — ignored")
+            return
+        }
+        self.saveEndCall(uuidString, reason)
+        if let call = self.callManager.callWithUUID(uuid: uuid) {
+            call.endCall()
+            self.callManager.removeCall(call)
+        }
+        if let stored = self.data, UUID(uuidString: stored.uuid) == uuid {
+            self.data = nil
+        }
     }
 
     @objc public func connectedCall(_ data: Data) {

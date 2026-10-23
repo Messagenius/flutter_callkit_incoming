@@ -141,6 +141,12 @@ class FlutterCallkitIncoming {
     await _channel.invokeMethod("endCall", {'id': id});
   }
 
+  /// Dismiss a call this device never answered without reporting a user decline
+  /// (no CXEndCallAction on iOS, no decline/ended broadcast on Android).
+  static Future endCallSilently(String id, {int reason = 4}) async {
+    await _channel.invokeMethod("endCallSilently", {'id': id, 'reason': reason});
+  }
+
   /// Set call has been connected successfully.
   /// On iOS, using Callkit(update a history into the Phone app).
   /// On Android, Nothing(only callback event listener).
