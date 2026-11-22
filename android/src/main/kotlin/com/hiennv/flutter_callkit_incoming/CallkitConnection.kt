@@ -117,26 +117,33 @@ class CallkitConnection(
     override fun onAnswer() {
         super.onAnswer()
         Log.d(TAG, "onAnswer id=$callId")
-        setActive()
-        applyPendingRoute()
+        // Same path as the Accept button of our notification: the receiver
+        // activates this connection and tells the app, which joins the call.
+        appContext.sendBroadcast(CallkitIncomingBroadcastReceiver.getIntentAccept(appContext, bundle))
     }
 
     override fun onReject() {
         super.onReject()
         Log.d(TAG, "onReject id=$callId")
-        finishWithCause(DisconnectCause.REJECTED)
+        appContext.sendBroadcast(CallkitIncomingBroadcastReceiver.getIntentDecline(appContext, bundle))
     }
 
     override fun onDisconnect() {
         super.onDisconnect()
-        Log.d(TAG, "onDisconnect id=$callId")
-        finishWithCause(DisconnectCause.LOCAL)
+        Log.d(TAG, "onDisconnect id=$callId state=$state")
+        // An incoming call hung up while it still rings is a decline.
+        val intent = if (state == STATE_RINGING) {
+            CallkitIncomingBroadcastReceiver.getIntentDecline(appContext, bundle)
+        } else {
+            CallkitIncomingBroadcastReceiver.getIntentEnded(appContext, bundle)
+        }
+        appContext.sendBroadcast(intent)
     }
 
     override fun onAbort() {
         super.onAbort()
         Log.d(TAG, "onAbort id=$callId")
-        finishWithCause(DisconnectCause.UNKNOWN)
+        appContext.sendBroadcast(CallkitIncomingBroadcastReceiver.getIntentEnded(appContext, bundle))
     }
 
     // Telecom holds this self-managed connection when another call takes over

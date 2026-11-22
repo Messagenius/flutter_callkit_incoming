@@ -201,7 +201,9 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
             putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, handle)
             putBundle(TelecomManager.EXTRA_OUTGOING_CALL_EXTRAS, outgoingExtras)
             putInt(TelecomManager.EXTRA_START_CALL_WITH_VIDEO_STATE, CallkitConnection.videoStateOf(parsed))
-            if (parsed.type == 1) putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, true)
+            // Messagenius fork: no EXTRA_START_CALL_WITH_SPEAKERPHONE for video. It moved
+            // the call off a connected Bluetooth device (car hands-free); the connection
+            // itself picks the speaker when no headset is there (applyPendingRoute).
         }
         val address = parsed.handle.ifEmpty { parsed.id }
         try {
